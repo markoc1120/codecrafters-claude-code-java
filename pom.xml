@@ -38,7 +38,8 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
                 <configuration>
-                    <finalName>codecrafters-claude-code</finalName> <!-- Please do not change this final artifact name-->
+                    <finalName>codecrafters-claude-code
+                    </finalName> <!-- Please do not change this final artifact name-->
                     <descriptorRefs>
                         <descriptorRef>jar-with-dependencies</descriptorRef>
                     </descriptorRefs>
@@ -47,7 +48,7 @@
                         <manifest>
                             <addClasspath>true</addClasspath>
                             <!-- This is the main class of your program which will be executed-->
-                            <mainClass>Main</mainClass>
+                            <mainClass>com.github.markoc1120.agent.Main</mainClass>
                         </manifest>
                     </archive>
                     <outputDirectory>${dir}</outputDirectory>

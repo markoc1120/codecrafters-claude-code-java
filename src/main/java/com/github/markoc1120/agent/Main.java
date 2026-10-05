@@ -1,10 +1,19 @@
+package com.github.markoc1120.agent;
+
+import com.github.markoc1120.agent.contracts.OpenAiToolAdapter;
+import com.github.markoc1120.agent.contracts.Tool;
+import com.github.markoc1120.agent.contracts.ToolSpec;
+import com.github.markoc1120.agent.tools.ReadTool;
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.models.chat.completions.ChatCompletion;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
+import com.openai.models.chat.completions.ChatCompletionTool;
+
+import java.util.List;
 
 public class Main {
-    public static void main(String[] args) {
+    static void main(String[] args) {
         if (args.length < 2 || !"-p".equals(args[0])) {
             System.err.println("Usage: program -p <prompt>");
             System.exit(1);
@@ -22,15 +31,29 @@ public class Main {
             throw new RuntimeException("OPENROUTER_API_KEY is not set");
         }
 
+        String model = System.getenv().getOrDefault(
+                "LOCAL_MODEL",
+                "anthropic/claude-haiku-4.5"
+        );
+
         OpenAIClient client = OpenAIOkHttpClient.builder()
                 .apiKey(apiKey)
                 .baseUrl(baseUrl)
                 .build();
 
+        // tool parsing
+        List<Tool> tools = List.of(new ReadTool());
+        List<ToolSpec> toolSpecs = tools.stream().map(Tool::spec).toList();
+        OpenAiToolAdapter adapter = new OpenAiToolAdapter();
+        List<ChatCompletionTool> sdkTools = toolSpecs.stream().map(adapter::adapt).toList();
+
+        System.out.println("Using model: " + model);
+
         ChatCompletion response = client.chat().completions().create(
                 ChatCompletionCreateParams.builder()
-                        .model("anthropic/claude-haiku-4.5")
+                        .model(model)
                         .addUserMessage(prompt)
+                        .tools(sdkTools)
                         .build()
         );
 
@@ -42,6 +65,6 @@ public class Main {
         System.err.println("Logs from your program will appear here!");
 
         // TODO: Uncomment the line below to pass the first stage
-         System.out.print(response.choices().get(0).message().content().orElse(""));
+        System.out.print(response.choices().getFirst().message().content().orElse(""));
     }
 }

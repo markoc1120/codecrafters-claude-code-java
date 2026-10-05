@@ -8,6 +8,12 @@
 
 set -e # Exit early if any commands fail
 
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
 # Copied from .codecrafters/compile.sh
 #
 # - Edit this to change how your program compiles locally
