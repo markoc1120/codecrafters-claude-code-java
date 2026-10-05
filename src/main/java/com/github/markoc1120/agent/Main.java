@@ -47,8 +47,6 @@ public class Main {
         OpenAiToolAdapter adapter = new OpenAiToolAdapter();
         List<ChatCompletionTool> sdkTools = toolSpecs.stream().map(adapter::adapt).toList();
 
-        System.out.println("Using model: " + model);
-
         ChatCompletion response = client.chat().completions().create(
                 ChatCompletionCreateParams.builder()
                         .model(model)
