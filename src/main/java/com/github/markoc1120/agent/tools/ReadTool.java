@@ -32,7 +32,8 @@ public final class ReadTool implements AgentTool {
 
     @Override
     public String execute(JsonNode arguments) {
-        Path path = Path.of(arguments.get("file_path").asText());
+        Path path = Path.of(arguments.get("file_path")
+                .asText());
         String result;
         try {
             result = Files.readString(path);

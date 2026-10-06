@@ -10,12 +10,18 @@ public final class OpenAiToolAdapter implements ToolAdapter<ChatCompletionTool> 
     @Override
     public ChatCompletionTool adapt(ToolSpec toolSpec) {
         FunctionParameters.Builder paramsBuilder = FunctionParameters.builder();
-        toolSpec.parameters().forEach(
-                (key, value) -> paramsBuilder.putAdditionalProperty(key, JsonValue.from(value)));
+        toolSpec.parameters()
+                .forEach((key, value) -> paramsBuilder.putAdditionalProperty(key,
+                        JsonValue.from(value)));
 
-        FunctionDefinition function = FunctionDefinition.builder().name(toolSpec.name())
-                .description(toolSpec.description()).parameters(paramsBuilder.build()).build();
+        FunctionDefinition function = FunctionDefinition.builder()
+                .name(toolSpec.name())
+                .description(toolSpec.description())
+                .parameters(paramsBuilder.build())
+                .build();
 
-        return ChatCompletionTool.builder().function(function).build();
+        return ChatCompletionTool.builder()
+                .function(function)
+                .build();
     }
 }

@@ -37,10 +37,8 @@ public class Main {
             throw new RuntimeException("OPENROUTER_API_KEY is not set");
         }
 
-        String model = System.getenv().getOrDefault(
-                "LOCAL_MODEL",
-                "anthropic/claude-haiku-4.5"
-        );
+        String model = System.getenv()
+                .getOrDefault("LOCAL_MODEL", "anthropic/claude-haiku-4.5");
 
         OpenAIClient client = OpenAIOkHttpClient.builder()
                 .apiKey(apiKey)
@@ -49,19 +47,24 @@ public class Main {
 
         // tool parsing
         List<AgentTool> tools = List.of(new ReadTool());
-        List<ToolSpec> agentTools = tools.stream().map(AgentTool::spec).toList();
+        List<ToolSpec> agentTools = tools.stream()
+                .map(AgentTool::spec)
+                .toList();
         OpenAiToolAdapter adapter = new OpenAiToolAdapter();
-        List<ChatCompletionTool> sdkTools = agentTools.stream().map(adapter::adapt).toList();
+        List<ChatCompletionTool> sdkTools = agentTools.stream()
+                .map(adapter::adapt)
+                .toList();
 
-        ChatCompletion response = client.chat().completions().create(
-                ChatCompletionCreateParams.builder()
+        ChatCompletion response = client.chat()
+                .completions()
+                .create(ChatCompletionCreateParams.builder()
                         .model(model)
                         .addUserMessage(prompt)
                         .tools(sdkTools)
-                        .build()
-        );
+                        .build());
 
-        if (response.choices().isEmpty()) {
+        if (response.choices()
+                .isEmpty()) {
             throw new RuntimeException("no choices in response");
         }
 
@@ -71,11 +74,19 @@ public class Main {
         // TODO: Uncomment the line below to pass the first stage
         ChatCompletionMessageToolCall.Function toolFunction;
         try {
-            toolFunction = response.choices().getFirst()
-                    .message().toolCalls().get()
-                    .getFirst().function();
+            toolFunction = response.choices()
+                    .getFirst()
+                    .message()
+                    .toolCalls()
+                    .get()
+                    .getFirst()
+                    .function();
         } catch (NoSuchElementException e) {
-            System.out.print(response.choices().getFirst().message().content().orElse(""));
+            System.out.print(response.choices()
+                    .getFirst()
+                    .message()
+                    .content()
+                    .orElse(""));
             return;
         }
 
@@ -83,7 +94,9 @@ public class Main {
         String toolArguments = toolFunction.arguments();
 
         AgentTool tool = tools.stream()
-                .filter(t -> t.spec().name().equals(toolName))
+                .filter(t -> t.spec()
+                        .name()
+                        .equals(toolName))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Unknown tool: " + toolName));
 
