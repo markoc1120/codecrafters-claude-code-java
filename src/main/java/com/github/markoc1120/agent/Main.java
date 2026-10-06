@@ -104,7 +104,7 @@ public class Main {
         try {
             result = tool.execute(objectMapper.readTree(toolArguments));
         } catch (JsonProcessingException e) {
-            result = "Error: invalid tool arguments: " + e.getMessage();
+            throw new IllegalArgumentException("Invalid tool arguments for: " + toolName, e);
         }
         System.out.println(result);
     }
