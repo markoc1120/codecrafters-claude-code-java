@@ -14,6 +14,7 @@ import com.openai.models.chat.completions.ChatCompletionMessageToolCall;
 import com.openai.models.chat.completions.ChatCompletionTool;
 
 import java.util.List;
+import java.util.NoSuchElementException;
 
 public class Main {
     private final static ObjectMapper objectMapper = new ObjectMapper();
@@ -68,9 +69,15 @@ public class Main {
         System.err.println("Logs from your program will appear here!");
 
         // TODO: Uncomment the line below to pass the first stage
-        ChatCompletionMessageToolCall.Function toolFunction = response.choices().getFirst()
-                .message().toolCalls().get()
-                .getFirst().function();
+        ChatCompletionMessageToolCall.Function toolFunction;
+        try {
+            toolFunction = response.choices().getFirst()
+                    .message().toolCalls().get()
+                    .getFirst().function();
+        } catch (NoSuchElementException e) {
+            System.out.print(response.choices().getFirst().message().content().orElse(""));
+            return;
+        }
 
         String toolName = toolFunction.name();
         String toolArguments = toolFunction.arguments();
@@ -84,8 +91,8 @@ public class Main {
         try {
             result = tool.execute(objectMapper.readTree(toolArguments));
         } catch (JsonProcessingException e) {
-            throw new IllegalArgumentException("Invalid arguments for " + toolName, e);
+            result = "Error: invalid tool arguments: " + e.getMessage();
         }
-        System.out.print(result);
+        System.out.println(result);
     }
 }
