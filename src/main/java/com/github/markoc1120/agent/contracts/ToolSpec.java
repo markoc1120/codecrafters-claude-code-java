@@ -1,7 +1,10 @@
 package com.github.markoc1120.agent.contracts;
 
+import java.util.Map;
+
 public record ToolSpec(
-        String type,
-        FunctionSpec function
+        String name,
+        String description,
+        Map<String, Object> parameters
 ) {
 }

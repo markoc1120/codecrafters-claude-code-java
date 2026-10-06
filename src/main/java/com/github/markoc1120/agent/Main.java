@@ -1,18 +1,23 @@
 package com.github.markoc1120.agent;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.markoc1120.agent.contracts.AgentTool;
 import com.github.markoc1120.agent.contracts.OpenAiToolAdapter;
-import com.github.markoc1120.agent.contracts.Tool;
 import com.github.markoc1120.agent.contracts.ToolSpec;
 import com.github.markoc1120.agent.tools.ReadTool;
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.models.chat.completions.ChatCompletion;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
+import com.openai.models.chat.completions.ChatCompletionMessageToolCall;
 import com.openai.models.chat.completions.ChatCompletionTool;
 
 import java.util.List;
 
 public class Main {
+    private final static ObjectMapper objectMapper = new ObjectMapper();
+
     static void main(String[] args) {
         if (args.length < 2 || !"-p".equals(args[0])) {
             System.err.println("Usage: program -p <prompt>");
@@ -42,10 +47,10 @@ public class Main {
                 .build();
 
         // tool parsing
-        List<Tool> tools = List.of(new ReadTool());
-        List<ToolSpec> toolSpecs = tools.stream().map(Tool::spec).toList();
+        List<AgentTool> tools = List.of(new ReadTool());
+        List<ToolSpec> agentTools = tools.stream().map(AgentTool::spec).toList();
         OpenAiToolAdapter adapter = new OpenAiToolAdapter();
-        List<ChatCompletionTool> sdkTools = toolSpecs.stream().map(adapter::adapt).toList();
+        List<ChatCompletionTool> sdkTools = agentTools.stream().map(adapter::adapt).toList();
 
         ChatCompletion response = client.chat().completions().create(
                 ChatCompletionCreateParams.builder()
@@ -63,6 +68,24 @@ public class Main {
         System.err.println("Logs from your program will appear here!");
 
         // TODO: Uncomment the line below to pass the first stage
-        System.out.print(response.choices().getFirst().message().content().orElse(""));
+        ChatCompletionMessageToolCall.Function toolFunction = response.choices().getFirst()
+                .message().toolCalls().get()
+                .getFirst().function();
+
+        String toolName = toolFunction.name();
+        String toolArguments = toolFunction.arguments();
+
+        AgentTool tool = tools.stream()
+                .filter(t -> t.spec().name().equals(toolName))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Unknown tool: " + toolName));
+
+        String result;
+        try {
+            result = tool.execute(objectMapper.readTree(toolArguments));
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Invalid arguments for " + toolName, e);
+        }
+        System.out.print(result);
     }
 }

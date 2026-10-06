@@ -1,27 +1,44 @@
 package com.github.markoc1120.agent.tools;
 
-import com.github.markoc1120.agent.contracts.FunctionSpec;
-import com.github.markoc1120.agent.contracts.ParameterSpec;
-import com.github.markoc1120.agent.contracts.PropertySpec;
-import com.github.markoc1120.agent.contracts.Tool;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.github.markoc1120.agent.contracts.AgentTool;
 import com.github.markoc1120.agent.contracts.ToolSpec;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
-public final class ReadTool implements Tool {
+public final class ReadTool implements AgentTool {
+
+    private static final ToolSpec SPEC = new ToolSpec(
+            "Read",
+            "Read and return the contents of a file",
+            Map.of(
+                    "type", "object",
+                    "properties", Map.of(
+                            "file_path",
+                            Map.of("type", "string", "description", "The path to the file to read")
+                    ),
+                    "required", List.of("file_path")
+            )
+    );
+
     @Override
     public ToolSpec spec() {
-        return new ToolSpec("function",
-                new FunctionSpec("Read", "Read and return the contents of a file",
-                        new ParameterSpec("object",
-                                Map.of("file_path",
-                                        new PropertySpec("string", "The path to the file to read")),
-                                List.of("file_path"))));
+        return SPEC;
     }
 
     @Override
-    public void execute() {
-        // skip for now
+    public String execute(JsonNode arguments) {
+        Path path = Path.of(arguments.get("file_path").asText());
+        String result;
+        try {
+            result = Files.readString(path);
+        } catch (IOException e) {
+            return "";
+        }
+        return result;
     }
 }
