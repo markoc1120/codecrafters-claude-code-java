@@ -66,7 +66,7 @@ public class Agent {
 
         ChatCompletionMessageToolCall.Function toolFunction = getToolFunction(msg);
         if (toolFunction == null) {
-            System.out.print(msg.content());
+            System.out.print(msg.content().orElse(""));
             return;
         }
 
