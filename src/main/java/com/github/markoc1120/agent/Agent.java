@@ -13,7 +13,6 @@ import com.openai.models.chat.completions.ChatCompletionMessageParam;
 import com.openai.models.chat.completions.ChatCompletionMessageToolCall;
 import com.openai.models.chat.completions.ChatCompletionToolMessageParam;
 import com.openai.models.chat.completions.ChatCompletionUserMessageParam;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,23 +49,19 @@ public class Agent {
                         .build());
     }
 
-    private @Nullable ChatCompletionMessageToolCall.Function getToolFunction(
-            ChatCompletionMessage msg) {
-        return msg.toolCalls()
-                .flatMap(toolCalls -> toolCalls.stream()
-                        .findFirst())
-                .map(ChatCompletionMessageToolCall::function)
-                .orElse(null);
-    }
-
     public void loop(String prompt) {
         // For now, it is OpenAI specific types (library agnostic solution needs own types + adapter)
+
+        // initial user prompt -> as agent calls tools we append the response, and everytime we call the agent
+        // we give the whole conversation (stateless)
         messages.add(ChatCompletionMessageParam.ofUser(ChatCompletionUserMessageParam.builder()
                 .content(prompt)
                 .build()));
 
         while (true) {
+            // calling agent with the whole conversation
             ChatCompletion response = callModel(messages);
+
             if (response.choices()
                     .isEmpty()) {
                 throw new RuntimeException("no choices in response");
@@ -77,6 +72,7 @@ public class Agent {
                     .getFirst()
                     .message();
 
+            // retrieve all the toolCalls
             List<ChatCompletionMessageToolCall> toolCalls = msg.toolCalls()
                     .orElse(List.of());
             if (toolCalls.isEmpty()) {
@@ -84,8 +80,10 @@ public class Agent {
                         .orElse(""));
                 return;
             }
+            // add the response (type: assistant) to the conversation (aka messages)
             messages.add(ChatCompletionMessageParam.ofAssistant(msg.toParam()));
 
+            // execute each tool and add their responses (type: tool) to the conversation
             for (ChatCompletionMessageToolCall toolCall : toolCalls) {
                 ChatCompletionMessageToolCall.Function toolCallFunction = toolCall.function();
                 String toolName = toolCallFunction.name();
