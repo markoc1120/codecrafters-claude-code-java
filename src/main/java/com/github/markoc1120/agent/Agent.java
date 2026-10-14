@@ -9,8 +9,14 @@ import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.models.chat.completions.ChatCompletion;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
 import com.openai.models.chat.completions.ChatCompletionMessage;
+import com.openai.models.chat.completions.ChatCompletionMessageParam;
 import com.openai.models.chat.completions.ChatCompletionMessageToolCall;
+import com.openai.models.chat.completions.ChatCompletionToolMessageParam;
+import com.openai.models.chat.completions.ChatCompletionUserMessageParam;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.ArrayList;
+import java.util.List;
 
 
 public class Agent {
@@ -18,6 +24,7 @@ public class Agent {
     private final Config config;
     private final ToolRegistry toolRegistry;
     private final OpenAIClient client;
+    private final List<ChatCompletionMessageParam> messages = new ArrayList<>();
 
 
     private Agent(Config config, ToolRegistry toolRegistry) {
@@ -33,12 +40,12 @@ public class Agent {
         return new Agent(config, toolRegistry);
     }
 
-    private ChatCompletion callModel(String prompt) {
+    private ChatCompletion callModel(List<ChatCompletionMessageParam> messages) {
         return client.chat()
                 .completions()
                 .create(ChatCompletionCreateParams.builder()
                         .model(config.model())
-                        .addUserMessage(prompt)
+                        .messages(messages)
                         .tools(toolRegistry.sdkTools())
                         .build());
     }
@@ -53,34 +60,51 @@ public class Agent {
     }
 
     public void loop(String prompt) {
-        ChatCompletion response = callModel(prompt);
-        if (response.choices()
-                .isEmpty()) {
-            throw new RuntimeException("no choices in response");
+        // For now, it is OpenAI specific types (library agnostic solution needs own types + adapter)
+        messages.add(ChatCompletionMessageParam.ofUser(ChatCompletionUserMessageParam.builder()
+                .content(prompt)
+                .build()));
+
+        while (true) {
+            ChatCompletion response = callModel(messages);
+            if (response.choices()
+                    .isEmpty()) {
+                throw new RuntimeException("no choices in response");
+            }
+            System.err.println("Logs from your program will appear here!");
+
+            ChatCompletionMessage msg = response.choices()
+                    .getFirst()
+                    .message();
+
+            List<ChatCompletionMessageToolCall> toolCalls = msg.toolCalls()
+                    .orElse(List.of());
+            if (toolCalls.isEmpty()) {
+                System.out.print(msg.content()
+                        .orElse(""));
+                return;
+            }
+            messages.add(ChatCompletionMessageParam.ofAssistant(msg.toParam()));
+
+            for (ChatCompletionMessageToolCall toolCall : toolCalls) {
+                ChatCompletionMessageToolCall.Function toolCallFunction = toolCall.function();
+                String toolName = toolCallFunction.name();
+                String toolArguments = toolCallFunction.arguments();
+
+                AgentTool tool = toolRegistry.findTool(toolName);
+                String result;
+                try {
+                    result = tool.execute(objectMapper.readTree(toolArguments));
+                } catch (JsonProcessingException e) {
+                    throw new IllegalArgumentException("Invalid tool arguments for: " + toolName,
+                            e);
+                }
+                messages.add(ChatCompletionMessageParam.ofTool(
+                        ChatCompletionToolMessageParam.builder()
+                                .toolCallId(toolCall.id())
+                                .content(result)
+                                .build()));
+            }
         }
-        System.err.println("Logs from your program will appear here!");
-
-        ChatCompletionMessage msg = response.choices()
-                .getFirst()
-                .message();
-
-        ChatCompletionMessageToolCall.Function toolFunction = getToolFunction(msg);
-        if (toolFunction == null) {
-            System.out.print(msg.content().orElse(""));
-            return;
-        }
-
-        String toolName = toolFunction.name();
-        String toolArguments = toolFunction.arguments();
-
-        AgentTool tool = toolRegistry.findTool(toolName);
-
-        String result;
-        try {
-            result = tool.execute(objectMapper.readTree(toolArguments));
-        } catch (JsonProcessingException e) {
-            throw new IllegalArgumentException("Invalid tool arguments for: " + toolName, e);
-        }
-        System.out.println(result);
     }
 }
