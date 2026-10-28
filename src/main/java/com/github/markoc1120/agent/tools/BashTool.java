@@ -5,6 +5,7 @@ import com.github.markoc1120.agent.contracts.AgentTool;
 import com.github.markoc1120.agent.contracts.ToolSpec;
 
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 
@@ -30,8 +31,11 @@ public class BashTool implements AgentTool {
 
     @Override
     public String execute(JsonNode arguments) {
-        ProcessBuilder pb = new ProcessBuilder("bash", arguments.get("command")
+        ProcessBuilder pb = new ProcessBuilder("bash", "-c", arguments.get("command")
                 .asText());
+        pb.directory(Paths.get("")
+                .toAbsolutePath()
+                .toFile());
 
         try {
             Process process = pb.start();
