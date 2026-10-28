@@ -1,5 +1,6 @@
 package com.github.markoc1120.agent;
 
+import com.github.markoc1120.agent.tools.BashTool;
 import com.github.markoc1120.agent.tools.ReadTool;
 import com.github.markoc1120.agent.tools.WriteTool;
 
@@ -21,7 +22,7 @@ public class Main {
 
         // initialize available tools
         ToolRegistry toolRegistry = new ToolRegistry(List.of(
-                new ReadTool(), new WriteTool()
+                new ReadTool(), new WriteTool(), new BashTool()
         ));
 
         // call the agent
