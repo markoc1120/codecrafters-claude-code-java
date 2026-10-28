@@ -37,10 +37,11 @@ public class WriteTool implements AgentTool {
     public String execute(JsonNode arguments) {
         Path path = Path.of(arguments.get("file_path")
                 .asText());
-        String content = String.valueOf(arguments.get("content"));
+//        String content = String.valueOf(arguments.get("content").asText());
 
         try {
-            Files.writeString(path, content);
+            Files.writeString(path, arguments.get("content")
+                    .asText());
             return "";
         } catch (IOException e) {
             return "";
