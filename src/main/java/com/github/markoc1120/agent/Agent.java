@@ -56,7 +56,7 @@ public class Agent {
     }
 
     private String getGlobalSkillsPrompt() {
-        Path skillsDirectory = Path.of(System.getProperty("user.home"), ".claude", "skills");
+        Path skillsDirectory = Path.of(".claude", "skills");
         SkillParser skillParser = new SkillParser();
 
         try (Stream<Path> paths = Files.walk(skillsDirectory)) {
