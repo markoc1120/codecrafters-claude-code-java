@@ -4,6 +4,10 @@ package com.github.markoc1120.agent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.markoc1120.agent.contracts.AgentTool;
+import com.github.markoc1120.agent.skill.Skill;
+import com.github.markoc1120.agent.skill.SkillLoader;
+import com.github.markoc1120.agent.skill.SkillParser;
+import com.github.markoc1120.agent.skill.SkillPromptBuilder;
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.models.chat.completions.ChatCompletion;
@@ -15,13 +19,8 @@ import com.openai.models.chat.completions.ChatCompletionSystemMessageParam;
 import com.openai.models.chat.completions.ChatCompletionToolMessageParam;
 import com.openai.models.chat.completions.ChatCompletionUserMessageParam;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
-import java.util.stream.Stream;
 
 
 public class Agent {
@@ -29,20 +28,33 @@ public class Agent {
     private final Config config;
     private final ToolRegistry toolRegistry;
     private final OpenAIClient client;
-    private final List<ChatCompletionMessageParam> messages = new ArrayList<>();
+    private final List<Skill> skills;
+    private final SkillPromptBuilder promptBuilder;
 
-
-    private Agent(Config config, ToolRegistry toolRegistry) {
+    private Agent(
+            Config config,
+            ToolRegistry toolRegistry,
+            OpenAIClient client,
+            List<Skill> skills
+    ) {
         this.config = config;
         this.toolRegistry = toolRegistry;
-        this.client = OpenAIOkHttpClient.builder()
-                .apiKey(config.apiKey())
-                .baseUrl(config.baseUrl())
-                .build();
+        this.client = client;
+        this.skills = skills;
+        this.promptBuilder = new SkillPromptBuilder();
     }
 
     public static Agent create(Config config, ToolRegistry toolRegistry) {
-        return new Agent(config, toolRegistry);
+        OpenAIClient client = OpenAIOkHttpClient.builder()
+                .apiKey(config.apiKey())
+                .baseUrl(config.baseUrl())
+                .build();
+
+        List<Skill> skills = new SkillLoader(
+                new SkillParser()
+        ).loadGlobalSkills();
+
+        return new Agent(config, toolRegistry, client, skills);
     }
 
     private ChatCompletion callModel(List<ChatCompletionMessageParam> messages) {
@@ -55,53 +67,26 @@ public class Agent {
                         .build());
     }
 
-    private String getGlobalSkillsPrompt() {
-        Path skillsDirectory = Path.of(".claude", "skills");
-        SkillParser skillParser = new SkillParser();
-
-        try (Stream<Path> paths = Files.walk(skillsDirectory)) {
-            List<String> skills = paths
-                    .filter(Files::isRegularFile)
-                    .filter(p -> p.getFileName()
-                            .toString()
-                            .equals("SKILL.md"))
-                    .map(p -> parseSkill(skillParser, p))
-                    .flatMap(Optional::stream)
-                    .map(Object::toString)
-                    .toList();
-
-            if (skills.isEmpty()) {
-                return "No skills available.";
-            }
-
-            return "You have access to the following skills:\n\n" + String.join("\n", skills);
-        } catch (IOException e) {
-            System.err.println("Failed to discover skills: " + e.getMessage());
-            return "No skills available.";
-        }
-    }
-
-    private Optional<Skill> parseSkill(SkillParser parser, Path path) {
-        try {
-            return Optional.of(parser.parse(path));
-        } catch (IOException e) {
-            System.err.println("Failed to parse skill: " + path + ": "
-                    + e.getMessage());
-            return Optional.empty();
-        }
-    }
-
     public void loop(String prompt) {
+        List<ChatCompletionMessageParam> messages = new ArrayList<>();
+
         // For now, it is OpenAI specific types (library agnostic solution needs own types + adapter)
-        messages.add(ChatCompletionMessageParam.ofSystem(ChatCompletionSystemMessageParam.builder()
-                .content(getGlobalSkillsPrompt())
-                .build()));
+        String systemPrompt = promptBuilder.buildSystemPrompt(skills);
+        String userPrompt = promptBuilder.resolvePrompt(prompt, skills);
+
+        messages.add(ChatCompletionMessageParam.ofSystem(
+                ChatCompletionSystemMessageParam.builder()
+                        .content(systemPrompt)
+                        .build()
+        ));
 
         // initial user prompt -> as agent calls tools we append the response, and everytime we call the agent
         // we give the whole conversation (stateless)
-        messages.add(ChatCompletionMessageParam.ofUser(ChatCompletionUserMessageParam.builder()
-                .content(prompt)
-                .build()));
+        messages.add(ChatCompletionMessageParam.ofUser(
+                ChatCompletionUserMessageParam.builder()
+                        .content(userPrompt)
+                        .build()
+        ));
 
         while (true) {
             // calling agent with the whole conversation
