@@ -15,7 +15,7 @@ public class SkillLoader {
     }
 
     public List<Skill> loadGlobalSkills() {
-        Path skillsDirectory = Path.of(System.getProperty("user.home"), ".claude", "skills");
+        Path skillsDirectory = Path.of(".claude", "skills");
 
         if (!Files.isDirectory(skillsDirectory)) {
             return List.of();
