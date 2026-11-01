@@ -1,7 +1,9 @@
 package com.github.markoc1120.agent.skill;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -34,46 +36,50 @@ public class SkillPromptBuilder {
                 """.formatted(skillDescriptions);
     }
 
-    private String replacePlaceholders(String instruction, List<String> values) {
-        String result = instruction.replaceAll("\\$ARGUMENTS", String.join(" ", values));
+    private Optional<Skill> findSkill(String name) {
+        return skills.stream()
+                .filter(s -> s.metadata()
+                        .name()
+                        .equals(name))
+                .findFirst();
+    }
+
+    private String replacePlaceholders(String instruction, List<String> args) {
+        String result = instruction.replaceAll("\\$ARGUMENTS", String.join(" ", args));
 
         Pattern pattern = Pattern.compile("\\$(\\d+)");
         return pattern.matcher(result)
                 .replaceAll(match -> {
                     int index = Integer.parseInt(match.group(1));
-
-                    return index < values.size() ? Matcher.quoteReplacement(
-                            values.get(index)) : match.group();
+                    String replacement = index < args.size() ? args.get(index) : match.group();
+                    return Matcher.quoteReplacement(replacement);
 
                 });
     }
 
-    private String resolveSkill(String prompt) {
-        String[] parts = prompt.split(" ");
-        String skill = parts[0];
-        List<String> arguments = Arrays.asList(parts)
-                .subList(1, parts.length);
-
-        String instruction = skills.stream()
-                .filter(s -> s.metadata()
-                        .name()
-                        .equals(skill))
-                .map(Skill::instruction)
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Unknown skill: " + skill));
-        return replacePlaceholders(instruction, arguments);
-    }
-
     public List<String> resolvePrompt(String prompt) {
-        if (!prompt.startsWith("/")) {
+        String[] parts = prompt.strip()
+                .split(" ");
+
+        List<Skill> invoked = new ArrayList<>();
+        int i = 0;
+        while (i < parts.length && parts[i].startsWith("/")) {
+            Optional<Skill> skill = findSkill(parts[i].substring(1));
+            if (skill.isEmpty()) {
+                break;
+            }
+            invoked.add(skill.get());
+            i++;
+        }
+
+        if (invoked.isEmpty()) {
             return List.of(prompt);
         }
 
-        String[] parts = prompt.split("/");
-        return Arrays.stream(parts)
-                .skip(1)
-                .map(String::strip)
-                .map(this::resolveSkill)
+        List<String> args = Arrays.asList(parts)
+                .subList(i, parts.length);
+        return invoked.stream()
+                .map(s -> replacePlaceholders(s.instruction(), args))
                 .toList();
     }
 }
