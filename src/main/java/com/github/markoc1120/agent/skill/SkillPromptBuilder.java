@@ -29,23 +29,17 @@ public class SkillPromptBuilder {
     }
 
     private String replacePlaceholders(String instruction, List<String> values) {
-        instruction = instruction.replaceAll("\\$ARGUMENTS", String.join(" ", values));
+        String result = instruction.replaceAll("\\$ARGUMENTS", String.join(" ", values));
+
         Pattern pattern = Pattern.compile("\\$(\\d+)");
-        Matcher matcher = pattern.matcher(instruction);
+        return pattern.matcher(result)
+                .replaceAll(match -> {
+                    int index = Integer.parseInt(match.group(1));
 
-        StringBuilder result = new StringBuilder();
-        while (matcher.find()) {
-            int index = Integer.parseInt(matcher.group(1));
+                    return index < values.size() ? Matcher.quoteReplacement(
+                            values.get(index)) : match.group();
 
-            if (index >= 0 && index < values.size()) {
-                matcher.appendReplacement(
-                        result,
-                        Matcher.quoteReplacement(values.get(index))
-                );
-            }
-        }
-        matcher.appendTail(result);
-        return result.toString();
+                });
     }
 
     public String resolvePrompt(String prompt, List<Skill> skills) {
@@ -59,14 +53,10 @@ public class SkillPromptBuilder {
 
         String instruction = skills.stream()
                 .filter(s -> s.getPrompt()
-                        .startsWith(skill))
+                        .equals(skill))
                 .map(Skill::instruction)
                 .findFirst()
-                .orElse("");
-
-        if (arguments.isEmpty()) {
-            return instruction;
-        }
+                .orElseThrow(() -> new IllegalArgumentException("Unkown skill: " + skill));
 
         return replacePlaceholders(instruction, arguments);
     }
