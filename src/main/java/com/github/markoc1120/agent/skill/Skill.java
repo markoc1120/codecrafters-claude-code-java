@@ -10,8 +10,4 @@ public record Skill(
     public String toString() {
         return "- %s: %s".formatted(metadata.name(), metadata.description());
     }
-
-    public String getPrompt() {
-        return "/" + metadata.name();
-    }
 }

@@ -7,7 +7,13 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class SkillPromptBuilder {
-    public String buildSystemPrompt(List<Skill> skills) {
+    private final List<Skill> skills;
+
+    public SkillPromptBuilder(List<Skill> skills) {
+        this.skills = skills;
+    }
+
+    public String buildSystemPrompt() {
         if (skills.isEmpty()) {
             return "No skills available.";
         }
@@ -42,22 +48,32 @@ public class SkillPromptBuilder {
                 });
     }
 
-    public String resolvePrompt(String prompt, List<Skill> skills) {
-        if (!prompt.startsWith("/")) {
-            return prompt;
-        }
+    private String resolveSkill(String prompt) {
         String[] parts = prompt.split(" ");
         String skill = parts[0];
         List<String> arguments = Arrays.asList(parts)
                 .subList(1, parts.length);
 
         String instruction = skills.stream()
-                .filter(s -> s.getPrompt()
+                .filter(s -> s.metadata()
+                        .name()
                         .equals(skill))
                 .map(Skill::instruction)
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Unkown skill: " + skill));
-
+                .orElseThrow(() -> new IllegalArgumentException("Unknown skill: " + skill));
         return replacePlaceholders(instruction, arguments);
+    }
+
+    public List<String> resolvePrompt(String prompt) {
+        if (!prompt.startsWith("/")) {
+            return List.of(prompt);
+        }
+
+        String[] parts = prompt.split("/");
+        return Arrays.stream(parts)
+                .skip(1)
+                .map(String::strip)
+                .map(this::resolveSkill)
+                .toList();
     }
 }

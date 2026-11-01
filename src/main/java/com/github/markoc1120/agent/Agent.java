@@ -41,7 +41,7 @@ public class Agent {
         this.toolRegistry = toolRegistry;
         this.client = client;
         this.skills = skills;
-        this.promptBuilder = new SkillPromptBuilder();
+        this.promptBuilder = new SkillPromptBuilder(skills);
     }
 
     public static Agent create(Config config, ToolRegistry toolRegistry) {
@@ -71,8 +71,8 @@ public class Agent {
         List<ChatCompletionMessageParam> messages = new ArrayList<>();
 
         // For now, it is OpenAI specific types (library agnostic solution needs own types + adapter)
-        String systemPrompt = promptBuilder.buildSystemPrompt(skills);
-        String userPrompt = promptBuilder.resolvePrompt(prompt, skills);
+        String systemPrompt = promptBuilder.buildSystemPrompt();
+        List<String> userPrompts = promptBuilder.resolvePrompt(prompt);
 
         messages.add(ChatCompletionMessageParam.ofSystem(
                 ChatCompletionSystemMessageParam.builder()
@@ -80,13 +80,16 @@ public class Agent {
                         .build()
         ));
 
-        // initial user prompt -> as agent calls tools we append the response, and everytime we call the agent
+        // initial user prompts -> as agent calls tools we append the response, and everytime we call the agent
         // we give the whole conversation (stateless)
-        messages.add(ChatCompletionMessageParam.ofUser(
-                ChatCompletionUserMessageParam.builder()
-                        .content(userPrompt)
-                        .build()
-        ));
+        userPrompts
+                .forEach(
+                        p -> messages.add(ChatCompletionMessageParam.ofUser(
+                                ChatCompletionUserMessageParam.builder()
+                                        .content(p)
+                                        .build()
+                        ))
+                );
 
         while (true) {
             // calling agent with the whole conversation
