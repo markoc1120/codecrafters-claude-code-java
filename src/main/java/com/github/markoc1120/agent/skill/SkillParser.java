@@ -19,6 +19,6 @@ public class SkillParser {
         }
         SkillMetadata metadata = yamlMapper.readValue(parts[1], SkillMetadata.class);
         String instruction = parts[2].strip();
-        return new Skill(metadata, instruction);
+        return new Skill(metadata, instruction, path);
     }
 }

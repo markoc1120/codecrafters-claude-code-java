@@ -2,9 +2,12 @@ package com.github.markoc1120.agent.skill;
 
 import org.jetbrains.annotations.NotNull;
 
+import java.nio.file.Path;
+
 public record Skill(
         SkillMetadata metadata,
-        String instruction
+        String instruction,
+        Path location
 ) {
     @NotNull
     public String toString() {

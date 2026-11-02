@@ -57,6 +57,13 @@ public class SkillPromptBuilder {
                 });
     }
 
+    private String wrapInstruction(Skill s, String instruction) {
+        return "Skill: %s (located at %s)\nPaths in the instructions below are relative to that folder.\n\n".formatted(
+                s.metadata()
+                        .name(), s.location()
+                        .getParent()) + instruction;
+    }
+
     public List<String> resolvePrompt(String prompt) {
         String[] parts = prompt.strip()
                 .split(" ");
@@ -79,7 +86,7 @@ public class SkillPromptBuilder {
         List<String> args = Arrays.asList(parts)
                 .subList(i, parts.length);
         return invoked.stream()
-                .map(s -> replacePlaceholders(s.instruction(), args))
+                .map(s -> wrapInstruction(s, replacePlaceholders(s.instruction(), args)))
                 .toList();
     }
 }
