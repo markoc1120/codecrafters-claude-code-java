@@ -39,7 +39,7 @@ public class SkillTool implements AgentTool {
     @Override
     public String execute(JsonNode arguments) {
         return String.join("\n", promptBuilder.resolvePrompt(
-                "%s %s".formatted(arguments.get("name"), arguments.get("args"))
+                "/%s %s".formatted(arguments.get("name"), arguments.get("args"))
         ));
     }
 }
