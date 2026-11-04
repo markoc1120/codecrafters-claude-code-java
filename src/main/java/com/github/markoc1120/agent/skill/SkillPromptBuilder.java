@@ -33,6 +33,9 @@ public class SkillPromptBuilder {
                 You have access to the following skills:
                 
                 %s
+                
+                If a skill matches the user's request, call the Skill tool with its name
+                and follow the instructions it returns.
                 """.formatted(skillDescriptions);
     }
 
