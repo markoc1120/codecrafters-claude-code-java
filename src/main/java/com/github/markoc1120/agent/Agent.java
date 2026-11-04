@@ -4,9 +4,6 @@ package com.github.markoc1120.agent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.markoc1120.agent.contracts.AgentTool;
-import com.github.markoc1120.agent.skill.Skill;
-import com.github.markoc1120.agent.skill.SkillLoader;
-import com.github.markoc1120.agent.skill.SkillParser;
 import com.github.markoc1120.agent.skill.SkillPromptBuilder;
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
@@ -28,33 +25,28 @@ public class Agent {
     private final Config config;
     private final ToolRegistry toolRegistry;
     private final OpenAIClient client;
-    private final List<Skill> skills;
     private final SkillPromptBuilder promptBuilder;
 
     private Agent(
             Config config,
             ToolRegistry toolRegistry,
             OpenAIClient client,
-            List<Skill> skills
+            SkillPromptBuilder promptBuilder
     ) {
         this.config = config;
         this.toolRegistry = toolRegistry;
         this.client = client;
-        this.skills = skills;
-        this.promptBuilder = new SkillPromptBuilder(skills);
+        this.promptBuilder = promptBuilder;
     }
 
-    public static Agent create(Config config, ToolRegistry toolRegistry) {
+    public static Agent create(Config config, ToolRegistry toolRegistry,
+                               SkillPromptBuilder promptBuilder) {
         OpenAIClient client = OpenAIOkHttpClient.builder()
                 .apiKey(config.apiKey())
                 .baseUrl(config.baseUrl())
                 .build();
 
-        List<Skill> skills = new SkillLoader(
-                new SkillParser()
-        ).loadGlobalSkills();
-
-        return new Agent(config, toolRegistry, client, skills);
+        return new Agent(config, toolRegistry, client, promptBuilder);
     }
 
     private ChatCompletion callModel(List<ChatCompletionMessageParam> messages) {

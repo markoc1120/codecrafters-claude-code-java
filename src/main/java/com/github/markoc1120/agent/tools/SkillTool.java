@@ -3,6 +3,7 @@ package com.github.markoc1120.agent.tools;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.github.markoc1120.agent.contracts.AgentTool;
 import com.github.markoc1120.agent.contracts.ToolSpec;
+import com.github.markoc1120.agent.skill.SkillPromptBuilder;
 
 import java.util.List;
 import java.util.Map;
@@ -24,6 +25,11 @@ public class SkillTool implements AgentTool {
                     "required", List.of("name")
             )
     );
+    private final SkillPromptBuilder promptBuilder;
+
+    public SkillTool(SkillPromptBuilder promptBuilder) {
+        this.promptBuilder = promptBuilder;
+    }
 
     @Override
     public ToolSpec spec() {
@@ -32,7 +38,9 @@ public class SkillTool implements AgentTool {
 
     @Override
     public String execute(JsonNode arguments) {
-        return "/%s %s".formatted(arguments.get("name"), arguments.get("args"));
+        return String.join("\n", promptBuilder.resolvePrompt(
+                "%s %s".formatted(arguments.get("name"), arguments.get("args"))
+        ));
     }
 }
 
