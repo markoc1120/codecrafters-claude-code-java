@@ -1,133 +1,102 @@
 package com.github.markoc1120.agent;
 
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.markoc1120.agent.contracts.AgentTool;
-import com.github.markoc1120.agent.skill.SkillPromptBuilder;
+import com.github.markoc1120.agent.config.Config;
+import com.github.markoc1120.agent.skill.SkillRegistry;
+import com.github.markoc1120.agent.tool.AgentTool;
+import com.github.markoc1120.agent.tool.ToolRegistry;
 import com.openai.client.OpenAIClient;
-import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.models.chat.completions.ChatCompletion;
+import com.openai.models.chat.completions.ChatCompletion.Choice.FinishReason;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
 import com.openai.models.chat.completions.ChatCompletionMessage;
-import com.openai.models.chat.completions.ChatCompletionMessageParam;
+import com.openai.models.chat.completions.ChatCompletionMessageFunctionToolCall;
 import com.openai.models.chat.completions.ChatCompletionMessageToolCall;
-import com.openai.models.chat.completions.ChatCompletionSystemMessageParam;
 import com.openai.models.chat.completions.ChatCompletionToolMessageParam;
-import com.openai.models.chat.completions.ChatCompletionUserMessageParam;
-
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import lombok.Getter;
 
-
+@Getter
 public class Agent {
-    private final static ObjectMapper objectMapper = new ObjectMapper();
-    private final Config config;
-    private final ToolRegistry toolRegistry;
-    private final OpenAIClient client;
-    private final SkillPromptBuilder promptBuilder;
+  private final Config config;
+  private final OpenAIClient client;
+  private final ChatCompletionCreateParams.Builder history;
 
-    private Agent(
-            Config config,
-            ToolRegistry toolRegistry,
-            OpenAIClient client,
-            SkillPromptBuilder promptBuilder
-    ) {
-        this.config = config;
-        this.toolRegistry = toolRegistry;
-        this.client = client;
-        this.promptBuilder = promptBuilder;
+  private final ToolRegistry toolRegistry;
+  private final SkillRegistry skillRegistry;
+
+  public Agent(
+      Config config, OpenAIClient client, ToolRegistry toolRegistry, SkillRegistry skillRegistry) {
+    this.config = config;
+    this.client = client;
+    this.history = ChatCompletionCreateParams.builder().model(config.model());
+
+    this.toolRegistry = toolRegistry;
+    this.skillRegistry = skillRegistry;
+
+    for (Class<? extends AgentTool> toolClass : toolRegistry.getClassByName().values()) {
+      this.history.addTool(toolClass);
     }
+  }
 
-    public static Agent create(Config config, ToolRegistry toolRegistry,
-                               SkillPromptBuilder promptBuilder) {
-        OpenAIClient client = OpenAIOkHttpClient.builder()
-                .apiKey(config.apiKey())
-                .baseUrl(config.baseUrl())
-                .build();
+  public void initializeChat(String prompt) {
+    history.addSystemMessage(skillRegistry.buildSystemPrompt());
 
-        return new Agent(config, toolRegistry, client, promptBuilder);
-    }
+    // initial user prompts -> as agent calls tools we append the response, and everytime we call
+    // the agent
+    // we give the whole conversation (stateless)
+    skillRegistry.resolvePrompt(prompt).forEach(this::pushMessage);
+  }
 
-    private ChatCompletion callModel(List<ChatCompletionMessageParam> messages) {
-        return client.chat()
-                .completions()
-                .create(ChatCompletionCreateParams.builder()
-                        .model(config.model())
-                        .messages(messages)
-                        .tools(toolRegistry.sdkTools())
-                        .build());
-    }
+  public void pushMessage(String message) {
+    history.addUserMessage(message);
+  }
 
-    public void loop(String prompt) {
-        List<ChatCompletionMessageParam> messages = new ArrayList<>();
+  public Optional<String> loop() {
+    while (true) {
+      // calling agent with the whole conversation
+      List<ChatCompletion.Choice> choices =
+          client.chat().completions().create(history.build()).choices();
+      if (choices.isEmpty()) {
+        throw new RuntimeException("no choices in response");
+      }
 
-        // For now, it is OpenAI specific types (library agnostic solution needs own types + adapter)
-        String systemPrompt = promptBuilder.buildSystemPrompt();
-        List<String> userPrompts = promptBuilder.resolvePrompt(prompt);
+      ChatCompletion.Choice choice = choices.getFirst();
+      ChatCompletionMessage message = choice.message();
+      history.addMessage(message);
 
-        messages.add(ChatCompletionMessageParam.ofSystem(
-                ChatCompletionSystemMessageParam.builder()
-                        .content(systemPrompt)
-                        .build()
-        ));
-
-        // initial user prompts -> as agent calls tools we append the response, and everytime we call the agent
-        // we give the whole conversation (stateless)
-        userPrompts
-                .forEach(
-                        p -> messages.add(ChatCompletionMessageParam.ofUser(
-                                ChatCompletionUserMessageParam.builder()
-                                        .content(p)
-                                        .build()
-                        ))
-                );
-
-        while (true) {
-            // calling agent with the whole conversation
-            ChatCompletion response = callModel(messages);
-
-            if (response.choices()
-                    .isEmpty()) {
-                throw new RuntimeException("no choices in response");
-            }
-            System.err.println("Logs from your program will appear here!");
-
-            ChatCompletionMessage msg = response.choices()
-                    .getFirst()
-                    .message();
-
-            // retrieve all the toolCalls
-            List<ChatCompletionMessageToolCall> toolCalls = msg.toolCalls()
-                    .orElse(List.of());
-            if (toolCalls.isEmpty()) {
-                System.out.print(msg.content()
-                        .orElse(""));
-                return;
-            }
-            // add the response (type: assistant) to the conversation (aka messages)
-            messages.add(ChatCompletionMessageParam.ofAssistant(msg.toParam()));
-
-            // execute each tool and add their responses (type: tool) to the conversation
-            for (ChatCompletionMessageToolCall toolCall : toolCalls) {
-                ChatCompletionMessageToolCall.Function toolCallFunction = toolCall.function();
-                String toolName = toolCallFunction.name();
-                String toolArguments = toolCallFunction.arguments();
-
-                AgentTool tool = toolRegistry.findTool(toolName);
-                String result;
-                try {
-                    result = tool.execute(objectMapper.readTree(toolArguments));
-                } catch (JsonProcessingException e) {
-                    throw new IllegalArgumentException("Invalid tool arguments for: " + toolName,
-                            e);
-                }
-                messages.add(ChatCompletionMessageParam.ofTool(
-                        ChatCompletionToolMessageParam.builder()
-                                .toolCallId(toolCall.id())
-                                .content(result)
-                                .build()));
-            }
+      if (FinishReason.TOOL_CALLS.equals(choice.finishReason())) {
+        Optional<List<ChatCompletionMessageToolCall>> toolCalls = message.toolCalls();
+        if (toolCalls.isEmpty()) {
+          throw new IllegalStateException("No toolCall is found in the message");
         }
+
+        for (ChatCompletionMessageToolCall toolCall : toolCalls.get()) {
+
+          ChatCompletionMessageFunctionToolCall toolFunction = toolCall.asFunction();
+          String result = callFunction(toolFunction.function());
+
+          history.addMessage(
+              ChatCompletionToolMessageParam.builder()
+                  .toolCallId(toolFunction.id())
+                  .content(result)
+                  .build());
+        }
+
+      } else if (FinishReason.STOP.equals(choice.finishReason())) {
+        return message.content();
+      } else {
+        System.err.println("Chat finished with: " + choice.finishReason());
+        return Optional.empty();
+      }
     }
+  }
+
+  private String callFunction(ChatCompletionMessageFunctionToolCall.Function function) {
+    Class<? extends AgentTool> toolClass =
+        toolRegistry
+            .find(function.name())
+            .orElseThrow(() -> new IllegalArgumentException("Unknown tool: " + function.name()));
+    return function.arguments(toolClass).execute(this);
+  }
 }
