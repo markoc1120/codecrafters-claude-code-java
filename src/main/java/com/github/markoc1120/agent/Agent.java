@@ -39,6 +39,10 @@ public class Agent {
     }
   }
 
+  public Agent fork() {
+    return new Agent(config, client, toolRegistry, skillRegistry);
+  }
+
   public void initializeChat(String prompt) {
     history.addSystemMessage(skillRegistry.buildSystemPrompt());
 
