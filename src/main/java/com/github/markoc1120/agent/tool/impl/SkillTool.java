@@ -40,10 +40,7 @@ public class SkillTool extends AgentTool {
       subAgent.pushMessage(prompt);
 
       Optional<String> subAgentResult = subAgent.loop();
-      if (subAgentResult.isPresent()) {
-        return "subagent: %s".formatted(subAgentResult);
-      }
-      return "subagent: no response";
+      return subAgentResult.map("subagent: %s"::formatted).orElse("subagent: no response");
     }
 
     return prompt;

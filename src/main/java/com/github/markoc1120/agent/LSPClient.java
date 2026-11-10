@@ -11,6 +11,7 @@ import java.time.Duration;
 import java.util.Map;
 
 public final class LSPClient {
+  private static final ObjectMapper MAPPER = new ObjectMapper();
   public final Map<String, String> extensionToLanguage;
   private final String url;
   private final HttpClient client = HttpClient.newHttpClient();
@@ -19,9 +20,7 @@ public final class LSPClient {
     url = System.getenv("CODECRAFTERS_LSP_URL");
     if (url == null) throw new IllegalStateException("Run with the course LSP transport");
     extensionToLanguage =
-        new ObjectMapper()
-            .readValue(call("configuration", "{}"), Configuration.class)
-            .extensionToLanguage();
+        MAPPER.readValue(call("configuration", "{}"), Configuration.class).extensionToLanguage();
   }
 
   public static LSPClient fromEnvironment() throws Exception {
@@ -39,6 +38,10 @@ public final class LSPClient {
     var response = client.send(request, HttpResponse.BodyHandlers.ofString());
     if (response.statusCode() != 200) throw new IllegalStateException(response.body());
     return response.body();
+  }
+
+  public String send(String action, Object body) throws Exception {
+    return call(action, MAPPER.writeValueAsString(body));
   }
 
   private record Configuration(Map<String, String> extensionToLanguage) {}

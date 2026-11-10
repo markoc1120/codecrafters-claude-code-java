@@ -90,7 +90,8 @@ public class SkillRegistry {
   }
 
   private String wrapInstruction(Skill s, String instruction) {
-    return "Skill: %s (located at %s)\nPaths in the instructions below are relative to that folder.\n\n"
+    // Removed "Skill: " so no infinite Skill subagents
+    return "%s (located at %s)\nPaths in the instructions below are relative to that folder.\n\n"
             .formatted(s.metadata().name(), s.location().getParent())
         + instruction;
   }
