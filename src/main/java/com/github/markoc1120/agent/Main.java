@@ -5,6 +5,7 @@ import com.github.markoc1120.agent.skill.SkillParser;
 import com.github.markoc1120.agent.skill.SkillRegistry;
 import com.github.markoc1120.agent.tool.ToolRegistry;
 import com.github.markoc1120.agent.tool.impl.BashTool;
+import com.github.markoc1120.agent.tool.impl.LSPTool;
 import com.github.markoc1120.agent.tool.impl.ReadTool;
 import com.github.markoc1120.agent.tool.impl.SkillTool;
 import com.github.markoc1120.agent.tool.impl.WriteTool;
@@ -35,13 +36,25 @@ public class Main {
     toolRegistry.add(WriteTool.class);
     toolRegistry.add(BashTool.class);
     toolRegistry.add(SkillTool.class);
+    toolRegistry.add(LSPTool.class);
 
     // load available skills
     SkillRegistry skillRegistry = new SkillRegistry(new SkillParser());
     skillRegistry.loadGlobalSkills();
 
+    // initialize LSP client
+    LSPClient lspClient;
+    try {
+      lspClient = LSPClient.fromEnvironment();
+      if (lspClient != null) {
+        System.err.println("LSP client connected");
+      }
+    } catch (Exception e) {
+      throw new RuntimeException("failed to start the LSP client", e);
+    }
+
     // initialize agent
-    Agent agent = new Agent(config, client, toolRegistry, skillRegistry);
+    Agent agent = new Agent(config, client, toolRegistry, skillRegistry, lspClient);
     agent.initializeChat(prompt);
     agent.loop().ifPresent(System.out::println);
   }
