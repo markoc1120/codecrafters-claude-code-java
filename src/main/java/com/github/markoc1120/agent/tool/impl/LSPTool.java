@@ -14,12 +14,18 @@ import com.github.markoc1120.agent.tool.dto.DidOpenParams;
 import com.github.markoc1120.agent.tool.dto.LSPOperation;
 import com.github.markoc1120.agent.tool.dto.Message;
 import com.github.markoc1120.agent.tool.dto.Position;
+import com.github.markoc1120.agent.tool.dto.ReferenceContext;
+import com.github.markoc1120.agent.tool.dto.ReferenceParams;
 import com.github.markoc1120.agent.tool.dto.TextDocumentIdentifier;
 import com.github.markoc1120.agent.tool.dto.TextDocumentItem;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.SneakyThrows;
 
 @JsonTypeName("LSP")
@@ -66,13 +72,15 @@ public class LSPTool extends AgentTool {
     }
 
     String uri = absolutePath.toUri().toString();
-    if (LSPOperation.goToDefinition.equals(operation)) {
-      lspClient.send(
-          "notify",
-          new Message<>(
-              "textDocument/didOpen",
-              new DidOpenParams(new TextDocumentItem(uri, languageId, 1, text))));
 
+    //  notify open (regardless of request type)
+    lspClient.send(
+        "notify",
+        new Message<>(
+            "textDocument/didOpen",
+            new DidOpenParams(new TextDocumentItem(uri, languageId, 1, text))));
+
+    if (LSPOperation.goToDefinition.equals(operation)) {
       String response =
           lspClient.send(
               "request",
@@ -80,17 +88,64 @@ public class LSPTool extends AgentTool {
                   "textDocument/definition",
                   new DefinitionParams(
                       new TextDocumentIdentifier(uri), new Position(line - 1, character - 1))));
-      JsonNode parsed = MAPPER.readTree(response);
+      JsonNode definition = MAPPER.readTree(response);
+      return formatDefinition(definition);
+    } else if (LSPOperation.findReferences.equals(operation)) {
+      String response =
+          lspClient.send(
+              "request",
+              new Message<>(
+                  "textDocument/references",
+                  new ReferenceParams(
+                      new TextDocumentIdentifier(uri),
+                      new Position(line - 1, character - 1),
+                      new ReferenceContext(true))));
+      JsonNode locations = MAPPER.readTree(response);
+      return formatReferences(locations);
+    }
+    return "LSP: operation is not implemented yet";
+  }
 
-      String targetUri = parsed.get("uri").asText();
-      JsonNode start = parsed.get("range").get("start");
-      return "Defined in %s:%d:%d"
-          .formatted(
-              targetUri.substring(targetUri.lastIndexOf("/") + 1),
-              start.get("line").asInt() + 1,
-              start.get("character").asInt() + 1);
+  private String formatDefinition(JsonNode definition) {
+    if (definition == null || definition.isEmpty()) {
+      return "LSP: no definition found";
     }
 
-    return "LSP: operation is not implemented yet";
+    String parsedUri = parseUri(definition.get("uri"));
+    Position position = parsePosition(definition.get("range").get("start"));
+    return "Defined in %s:%d:%d".formatted(parsedUri, position.line(), position.character());
+  }
+
+  private String formatReferences(JsonNode locations) {
+    if (locations == null || !locations.isArray() || locations.isEmpty()) {
+      return "LSP: no references found";
+    }
+    Map<String, List<Position>> byFile =
+        locations
+            .valueStream()
+            .collect(
+                Collectors.groupingBy(
+                    loc -> parseUri(loc.get("uri")),
+                    LinkedHashMap::new,
+                    Collectors.mapping(
+                        loc -> parsePosition(loc.get("range").get("start")), Collectors.toList())));
+
+    StringBuilder sb = new StringBuilder();
+    sb.append("Found %d references across %d files:\n".formatted(locations.size(), byFile.size()));
+
+    byFile.forEach((file, position) -> {
+      sb.append("\n").append(file).append(":\n");
+      position.forEach(p -> sb.append("  Line %d:%d\n".formatted(p.line(), p.character())));
+    });
+    return sb.toString().stripTrailing();
+  }
+
+  private Position parsePosition(JsonNode position) {
+    return new Position(position.get("line").asInt() + 1, position.get("character").asInt() + 1);
+  }
+
+  private String parseUri(JsonNode uri) {
+    String targetUri = uri.asText();
+    return targetUri.substring(targetUri.lastIndexOf("/") + 1);
   }
 }
