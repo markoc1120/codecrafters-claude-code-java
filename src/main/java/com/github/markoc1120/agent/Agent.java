@@ -2,6 +2,8 @@ package com.github.markoc1120.agent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.markoc1120.agent.config.Config;
+import com.github.markoc1120.agent.lsp.DocumentTracker;
+import com.github.markoc1120.agent.lsp.LSPClient;
 import com.github.markoc1120.agent.skill.SkillRegistry;
 import com.github.markoc1120.agent.tool.AgentTool;
 import com.github.markoc1120.agent.tool.ToolRegistry;
@@ -26,6 +28,7 @@ public class Agent {
   private final ToolRegistry toolRegistry;
   private final SkillRegistry skillRegistry;
   private final LSPClient lspClient;
+  private final DocumentTracker documentTracker;
   private final ObjectMapper mapper = new ObjectMapper();
 
   public Agent(
@@ -33,7 +36,8 @@ public class Agent {
       OpenAIClient client,
       ToolRegistry toolRegistry,
       SkillRegistry skillRegistry,
-      LSPClient lspClient) {
+      LSPClient lspClient,
+      DocumentTracker documentTracker) {
     this.config = config;
     this.client = client;
     this.history = ChatCompletionCreateParams.builder().model(config.model());
@@ -41,6 +45,7 @@ public class Agent {
     this.toolRegistry = toolRegistry;
     this.skillRegistry = skillRegistry;
     this.lspClient = lspClient;
+    this.documentTracker = documentTracker;
 
     for (Class<? extends AgentTool> toolClass : toolRegistry.getClassByName().values()) {
       this.history.addTool(toolClass);
@@ -48,7 +53,7 @@ public class Agent {
   }
 
   public Agent fork() {
-    return new Agent(config, client, toolRegistry, skillRegistry, lspClient);
+    return new Agent(config, client, toolRegistry, skillRegistry, lspClient, documentTracker);
   }
 
   public void initializeChat(String prompt) {

@@ -1,4 +1,4 @@
-package com.github.markoc1120.agent; // Only needed for the LSP extension.
+package com.github.markoc1120.agent.lsp; // Only needed for the LSP extension.
 
 // You can ignore this file until you reach that extension.
 // Course-supplied transport; pass JSON using your existing JSON library.

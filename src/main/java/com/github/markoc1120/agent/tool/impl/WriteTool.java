@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
 import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.github.markoc1120.agent.Agent;
+import com.github.markoc1120.agent.lsp.DocumentTracker;
 import com.github.markoc1120.agent.tool.AgentTool;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -28,9 +29,13 @@ public class WriteTool extends AgentTool {
 
     try {
       Files.writeString(path, content);
+      DocumentTracker documentTracker = agent.getDocumentTracker();
+      if (documentTracker != null) {
+        documentTracker.syncAfterSave(path, content);
+      }
       return "";
     } catch (IOException e) {
-      return "";
+      return "Write failed: " + e;
     }
   }
 }

@@ -7,17 +7,16 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.markoc1120.agent.Agent;
-import com.github.markoc1120.agent.LSPClient;
+import com.github.markoc1120.agent.lsp.DocumentTracker;
+import com.github.markoc1120.agent.lsp.LSPClient;
 import com.github.markoc1120.agent.tool.AgentTool;
 import com.github.markoc1120.agent.tool.dto.DefinitionParams;
-import com.github.markoc1120.agent.tool.dto.DidOpenParams;
 import com.github.markoc1120.agent.tool.dto.LSPOperation;
 import com.github.markoc1120.agent.tool.dto.Message;
 import com.github.markoc1120.agent.tool.dto.Position;
 import com.github.markoc1120.agent.tool.dto.ReferenceContext;
 import com.github.markoc1120.agent.tool.dto.ReferenceParams;
 import com.github.markoc1120.agent.tool.dto.TextDocumentIdentifier;
-import com.github.markoc1120.agent.tool.dto.TextDocumentItem;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -63,23 +62,18 @@ public class LSPTool extends AgentTool {
       return "LSP: file not found: " + absolutePath;
     }
 
-    LSPClient lspClient = agent.getLspClient();
-    String fileName = absolutePath.getFileName().toString();
-    String extension = fileName.substring(fileName.lastIndexOf("."));
-    String languageId = lspClient.extensionToLanguage.get(extension);
+    DocumentTracker documentTracker = agent.getDocumentTracker();
+    String extension = documentTracker.extensionOf(absolutePath);
+    String languageId = documentTracker.languageIdFor(absolutePath);
     if (languageId.isEmpty()) {
       return "LSP: unsupported file extension: " + extension;
     }
 
     String uri = absolutePath.toUri().toString();
 
-    //  notify open (regardless of request type)
-    lspClient.send(
-        "notify",
-        new Message<>(
-            "textDocument/didOpen",
-            new DidOpenParams(new TextDocumentItem(uri, languageId, 1, text))));
-
+    //  open if necessary
+    documentTracker.openIfNecessary(absolutePath, text);
+    LSPClient lspClient = agent.getLspClient();
     if (LSPOperation.goToDefinition.equals(operation)) {
       String response =
           lspClient.send(
