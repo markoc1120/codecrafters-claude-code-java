@@ -7,14 +7,18 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Map;
+import lombok.Getter;
 
 public final class LSPClient {
   private static final ObjectMapper MAPPER = new ObjectMapper();
   public final Map<String, String> extensionToLanguage;
   private final String url;
   private final HttpClient client = HttpClient.newHttpClient();
+  @Getter private final DocumentTracker documentTracker = new DocumentTracker(this);
+  @Getter private final DiagnosticsTracker diagnosticsTracker = new DiagnosticsTracker(this);
 
   public LSPClient() throws Exception {
     url = System.getenv("CODECRAFTERS_LSP_URL");
@@ -26,6 +30,19 @@ public final class LSPClient {
   public static LSPClient fromEnvironment() throws Exception {
     if (System.getenv("CODECRAFTERS_LSP_URL") == null) return null;
     return new LSPClient();
+  }
+
+  public static String uriOf(Path path) {
+    return path.toAbsolutePath().toUri().toString();
+  }
+
+  public static String fileNameOf(Path path) {
+    return path.getFileName().toString();
+  }
+
+  public static String extensionOf(Path path) {
+    String fileName = LSPClient.fileNameOf(path);
+    return fileName.substring(fileName.lastIndexOf("."));
   }
 
   public String call(String action, String json) throws Exception {
@@ -42,6 +59,10 @@ public final class LSPClient {
 
   public String send(String action, Object body) throws Exception {
     return call(action, MAPPER.writeValueAsString(body));
+  }
+
+  public String languageIdFor(Path path) {
+    return this.extensionToLanguage.getOrDefault(extensionOf(path), "");
   }
 
   private record Configuration(Map<String, String> extensionToLanguage) {}

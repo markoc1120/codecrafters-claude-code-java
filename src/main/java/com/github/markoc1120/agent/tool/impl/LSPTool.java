@@ -10,13 +10,9 @@ import com.github.markoc1120.agent.Agent;
 import com.github.markoc1120.agent.lsp.DocumentTracker;
 import com.github.markoc1120.agent.lsp.LSPClient;
 import com.github.markoc1120.agent.tool.AgentTool;
-import com.github.markoc1120.agent.tool.dto.DefinitionParams;
 import com.github.markoc1120.agent.tool.dto.LSPOperation;
 import com.github.markoc1120.agent.tool.dto.Message;
 import com.github.markoc1120.agent.tool.dto.Position;
-import com.github.markoc1120.agent.tool.dto.ReferenceContext;
-import com.github.markoc1120.agent.tool.dto.ReferenceParams;
-import com.github.markoc1120.agent.tool.dto.TextDocumentIdentifier;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -62,18 +58,21 @@ public class LSPTool extends AgentTool {
       return "LSP: file not found: " + absolutePath;
     }
 
-    DocumentTracker documentTracker = agent.getDocumentTracker();
-    String extension = documentTracker.extensionOf(absolutePath);
-    String languageId = documentTracker.languageIdFor(absolutePath);
+    LSPClient lspClient = agent.getLspClient();
+    if (lspClient == null) {
+      return "LSP: not available";
+    }
+    DocumentTracker documentTracker = lspClient.getDocumentTracker();
+    String extension = LSPClient.extensionOf(absolutePath);
+    String languageId = lspClient.languageIdFor(absolutePath);
     if (languageId.isEmpty()) {
       return "LSP: unsupported file extension: " + extension;
     }
 
-    String uri = absolutePath.toUri().toString();
+    String uri = LSPClient.uriOf(absolutePath);
 
     //  open if necessary
     documentTracker.openIfNecessary(absolutePath, text);
-    LSPClient lspClient = agent.getLspClient();
     if (LSPOperation.goToDefinition.equals(operation)) {
       String response =
           lspClient.send(
@@ -142,4 +141,13 @@ public class LSPTool extends AgentTool {
     String targetUri = uri.asText();
     return targetUri.substring(targetUri.lastIndexOf("/") + 1);
   }
+
+  private record DefinitionParams(TextDocumentIdentifier textDocument, Position position) {}
+
+  private record ReferenceContext(boolean includeDeclaration) {}
+
+  private record ReferenceParams(
+      TextDocumentIdentifier textDocument, Position position, ReferenceContext context) {}
+
+  private record TextDocumentIdentifier(String uri) {}
 }

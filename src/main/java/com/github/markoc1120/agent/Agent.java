@@ -2,7 +2,6 @@ package com.github.markoc1120.agent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.markoc1120.agent.config.Config;
-import com.github.markoc1120.agent.lsp.DocumentTracker;
 import com.github.markoc1120.agent.lsp.LSPClient;
 import com.github.markoc1120.agent.skill.SkillRegistry;
 import com.github.markoc1120.agent.tool.AgentTool;
@@ -28,7 +27,6 @@ public class Agent {
   private final ToolRegistry toolRegistry;
   private final SkillRegistry skillRegistry;
   private final LSPClient lspClient;
-  private final DocumentTracker documentTracker;
   private final ObjectMapper mapper = new ObjectMapper();
 
   public Agent(
@@ -36,8 +34,7 @@ public class Agent {
       OpenAIClient client,
       ToolRegistry toolRegistry,
       SkillRegistry skillRegistry,
-      LSPClient lspClient,
-      DocumentTracker documentTracker) {
+      LSPClient lspClient) {
     this.config = config;
     this.client = client;
     this.history = ChatCompletionCreateParams.builder().model(config.model());
@@ -45,7 +42,6 @@ public class Agent {
     this.toolRegistry = toolRegistry;
     this.skillRegistry = skillRegistry;
     this.lspClient = lspClient;
-    this.documentTracker = documentTracker;
 
     for (Class<? extends AgentTool> toolClass : toolRegistry.getClassByName().values()) {
       this.history.addTool(toolClass);
@@ -53,7 +49,7 @@ public class Agent {
   }
 
   public Agent fork() {
-    return new Agent(config, client, toolRegistry, skillRegistry, lspClient, documentTracker);
+    return new Agent(config, client, toolRegistry, skillRegistry, lspClient);
   }
 
   public void initializeChat(String prompt) {
@@ -93,6 +89,11 @@ public class Agent {
           ChatCompletionMessageFunctionToolCall toolFunction = toolCall.asFunction();
           String result = callFunction(toolFunction.function());
 
+          Optional<String> diagnostics = collectNotifications();
+          if (diagnostics.isPresent()) {
+            result += diagnostics.get();
+          }
+
           history.addMessage(
               ChatCompletionToolMessageParam.builder()
                   .toolCallId(toolFunction.id())
@@ -115,5 +116,12 @@ public class Agent {
             .find(function.name())
             .orElseThrow(() -> new IllegalArgumentException("Unknown tool: " + function.name()));
     return function.arguments(toolClass).execute(this);
+  }
+
+  private Optional<String> collectNotifications() {
+    if (lspClient == null) {
+      return Optional.empty();
+    }
+    return lspClient.getDiagnosticsTracker().collectDiagnostics();
   }
 }

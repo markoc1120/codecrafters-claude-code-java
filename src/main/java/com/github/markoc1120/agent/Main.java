@@ -1,7 +1,6 @@
 package com.github.markoc1120.agent;
 
 import com.github.markoc1120.agent.config.Config;
-import com.github.markoc1120.agent.lsp.DocumentTracker;
 import com.github.markoc1120.agent.lsp.LSPClient;
 import com.github.markoc1120.agent.skill.SkillParser;
 import com.github.markoc1120.agent.skill.SkillRegistry;
@@ -55,10 +54,8 @@ public class Main {
       throw new RuntimeException("failed to start the LSP client", e);
     }
 
-    DocumentTracker documentTracker = lspClient == null ? null : new DocumentTracker(lspClient);
     // initialize agent
-    Agent agent =
-        new Agent(config, client, toolRegistry, skillRegistry, lspClient, documentTracker);
+    Agent agent = new Agent(config, client, toolRegistry, skillRegistry, lspClient);
     agent.initializeChat(prompt);
     agent.loop().ifPresent(System.out::println);
   }
